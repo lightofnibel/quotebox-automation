@@ -1,0 +1,399 @@
+{
+  "name": "QuoteBox - WhatsApp Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-bot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -672,
+        -256
+      ],
+      "id": "1d633dee-f252-4706-916a-c8a61d3b4bd6",
+      "name": "Webhook",
+      "webhookId": "a765c7e2-bf1f-4e26-9803-aaf14e77741c"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Message>{{ $('Build Response').first().json.responseText }}</Message>\n</Response>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        656,
+        0
+      ],
+      "id": "fae5e823-9046-4b0f-969e-008c6a41a73e",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = $json.body.Body.toLowerCase().trim().replace(/[¿?]/g, '');\nconst from = $json.body.From;\n\nlet intent = 'unknown';\n\nif (message.includes('cuántas') || message.includes('cuantas')) {\n  intent = 'count';\n} else if (message.includes('cuáles') || message.includes('cuales')) {\n  intent = 'list';\n}\n\n// Extraer autor: lo que viene después de \"de\"\nlet author = '';\nconst match = message.match(/\\bde\\s+(.+)/);\nif (match) {\n  author = match[1].trim();\n  // Quitar palabras finales irrelevantes como \"por favor\"\n  author = author.replace(/\\b(por favor|porfa)\\b/g, '').trim();\n}\n\nreturn [{ json: { intent, author, from, originalMessage: message } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        -304
+      ],
+      "id": "c715064b-b589-432d-bac7-04f294dead23",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU",
+          "mode": "list",
+          "cachedResultName": "QuoteBox",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "frases",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -336,
+        -256
+      ],
+      "id": "c3684736-235b-484b-9567-0edbe7eae933",
+      "name": "buscar frases",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Code in JavaScript').first().json;\nconst allQuotes = $input.all().map(item => item.json);\n\nconst matches = allQuotes.filter(q => \n  q.autor && q.autor.toLowerCase().includes(parsed.author.toLowerCase())\n);\n\nlet responseText = '';\nlet needsLogging = false;\n\nif (matches.length === 0) {\n  responseText = `No tengo frases de \"${parsed.author}\" por ahora.`;\n  needsLogging = true;\n} else if (parsed.intent === 'count') {\n  responseText = `Tengo ${matches.length} frase(s) de ${matches[0].autor}.`;\n} else if (parsed.intent === 'list') {\n  responseText = matches.map(m => `\"${m.texto}\"`).join('\\n\\n');\n} else {\n  responseText = `Encontré ${matches.length} frase(s) de ${matches[0].autor}. Preguntame \"cuántas hay\" o \"cuáles son\".`;\n}\n\nreturn [{ json: { responseText, found: matches.length > 0, needsLogging, author: parsed.author } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        -256
+      ],
+      "id": "0c566b35-ad8c-493e-9447-7cdbfdbe934e",
+      "name": "Build Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0c2cef4-50ee-49c1-8009-879c8dbc9eaa",
+              "leftValue": "={{ $json.needsLogging }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -48,
+        -256
+      ],
+      "id": "544f7869-0935-4710-98ab-5505109147ea",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco",
+          "mode": "list",
+          "cachedResultName": "consultas_no_encontradas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        160,
+        -368
+      ],
+      "id": "531c27ba-9fb1-4ba3-84b2-58d73326a055",
+      "name": "Check Previous Queries",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const buildResponse = $('Build Response').first().json;\nconst author = buildResponse.author;\n\nconst existing = $input.all().map(item => item.json).filter(row => row.autor_consultado);\n\nconst found = existing.find(row => row.autor_consultado.toLowerCase() === author.toLowerCase());\n\nconst now = new Date().toISOString();\n\nif (found) {\n  // Ya existe, incrementamos el contador\n  return [{\n    json: {\n      action: 'update',\n      row_number: found.row_number,\n      autor_consultado: author,\n      veces_pedido: parseInt(found.veces_pedido) + 1,\n      primera_consulta: found.primera_consulta,\n      ultima_consulta: now,\n      escalado: found.escalado || 'false'\n    }\n  }];\n} else {\n  // Primera vez\n  return [{\n    json: {\n      action: 'insert',\n      autor_consultado: author,\n      veces_pedido: 1,\n      primera_consulta: now,\n      ultima_consulta: now,\n      escalado: 'false'\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -352
+      ],
+      "id": "3cc7ece7-6248-48fa-bc61-6964aa340177",
+      "name": "Log Query"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco",
+          "mode": "list",
+          "cachedResultName": "consultas_no_encontradas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1DEJoKNb0kOM-Fe9ob6M9y-mxYqS_OMiS5-BlE_YCUco/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "autor_consultado": "={{ $json.autor_consultado }}",
+            "veces_pedido": "={{ $json.veces_pedido }}",
+            "primera_consulta": "={{ $json.primera_consulta }}",
+            "ultima_consulta": "={{ $json.ultima_consulta }}",
+            "escalado": "={{ $json.escalado }}"
+          },
+          "matchingColumns": [
+            "autor_consultado"
+          ],
+          "schema": [
+            {
+              "id": "autor_consultado",
+              "displayName": "autor_consultado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "veces_pedido",
+              "displayName": "veces_pedido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "primera_consulta",
+              "displayName": "primera_consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultima_consulta",
+              "displayName": "ultima_consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "escalado",
+              "displayName": "escalado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        496,
+        -224
+      ],
+      "id": "18109feb-313f-4e31-bd9b-2e75a8c88980",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "buscar frases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar frases": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Check Previous Queries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Previous Queries": {
+      "main": [
+        [
+          {
+            "node": "Log Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Query": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "13b99db5-4fc0-4cfb-9f7d-de797621a230",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "17271854b89f1088ce4e3e1c02cea1155199d6fbf1c8b0c745f75849742abd7b"
+  },
+  "id": "chLPoZRJY8MDnmOj",
+  "tags": []
+}

@@ -1,0 +1,508 @@
+{
+  "name": "QuoteBox - Scraping",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        -672
+      ],
+      "id": "89acd314-7d1e-4896-9cf0-a3f6a46a25bd",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://quotes.toscrape.com/login",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "ArchytasUser"
+            },
+            {
+              "name": "password",
+              "value": "123"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1248,
+        -448
+      ],
+      "id": "63cf1442-aca1-4aba-af84-5eb66dcf45a8",
+      "name": "HTTP Request",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $json.data;\n\nconst quoteBlocks = data.match(/<div class=\"quote\".*?<\\/div>\\s*<\\/div>/gs) || [];\n\nconst results = quoteBlocks.map(block => {\n  const textMatch = block.match(/<span class=\"text\"[^>]*>(.*?)<\\/span>/s);\n  const authorMatch = block.match(/<small class=\"author\"[^>]*>(.*?)<\\/small>/s);\n  const tagMatches = [...block.matchAll(/<a class=\"tag\"[^>]*>(.*?)<\\/a>/gs)];\n\n  const decode = (str) => str\n    .replace(/&#39;/g, \"'\")\n    .replace(/&quot;/g, '\"')\n    .replace(/&amp;/g, \"&\")\n    .trim();\n\n  const text = textMatch ? decode(textMatch[1]).replace(/\\s+/g, ' ') : null;\n  const author = authorMatch ? decode(authorMatch[1]) : null;\n  const tags = tagMatches.map(m => decode(m[1]));\n\n  return { text, author, tags };\n});\n\nreturn { json: { quotes: results } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        -672
+      ],
+      "id": "6a9a662e-58d2-47e6-a431-de6b5b0ca5e9",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const loginData = $input.first().json;\nconst cookie = loginData.headers[\"set-cookie\"][0].split(\";\")[0].split(\"=\")[1];\n\nconst items = [];\nfor (let i = 1; i <= 10; i++) {\n  items.push({\n    json: {\n      url: `https://quotes.toscrape.com/page/${i}/`,\n      page: i,\n      cookie: cookie\n    }\n  });\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1072,
+        -672
+      ],
+      "id": "c83810aa-0810-4220-a061-26a57500cf13",
+      "name": "iterar paginas"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "=session={{ $json.cookie }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1040,
+        -464
+      ],
+      "id": "1aa9c81f-3a04-4060-876c-4678b40b987c",
+      "name": "session cookies"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allQuotes = [];\n\nfor (const item of $input.all()) {\n  for (const quote of item.json.quotes) {\n    allQuotes.push({ json: quote });\n  }\n}\n\nreturn allQuotes;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        -464
+      ],
+      "id": "5a83a5ab-77ee-40d8-8a33-e5dfc952dc26",
+      "name": "un item x frase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Las 100 frases las recuperamos del nodo \"un item x frase\"\nconst quotes = $('un item x frase').all().map(item => item.json);\n\n// Los tags activos vienen del input actual (Get Rows)\nconst tagsConfig = $input.all().map(item => item.json);\nconst activeTags = tagsConfig\n  .filter(row => row.activo === true || row.activo === 'true' || row.activo === 'TRUE')\n  .map(row => row.tag.toLowerCase());\n\nconst filtered = quotes.filter(quote => {\n  const quoteTags = quote.tags.map(t => t.toLowerCase());\n  return quoteTags.some(tag => activeTags.includes(tag));\n});\n\nreturn filtered.map(q => ({ json: q }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        -464
+      ],
+      "id": "d885e65b-62f9-4e28-ae3b-0f3025bf57db",
+      "name": "filtrar tags"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU",
+          "mode": "list",
+          "cachedResultName": "QuoteBox",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 736019764,
+          "mode": "list",
+          "cachedResultName": "config_tags",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit#gid=736019764"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -608,
+        -672
+      ],
+      "id": "bdbbf39b-d54e-4094-9cc6-8f320a99ea7b",
+      "name": "Get Rows",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU",
+          "mode": "list",
+          "cachedResultName": "QuoteBox",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "frases",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -352,
+        -672
+      ],
+      "id": "1aa53be2-3658-4f46-beef-af46836226d1",
+      "name": "frases existentes",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const newQuotes = $('filtrar tags').all().map(item => item.json);\n\nconst existing = $input.all().map(item => item.json).filter(row => row.texto);\n\nconst existingKeys = new Set(\n  existing.map(row => `${row.texto}|||${row.autor}`)\n);\n\nconst newOnes = newQuotes.filter(q => {\n  const key = `${q.text}|||${q.author}`;\n  return !existingKeys.has(key);\n});\n\nreturn newOnes.map(q => ({ json: q }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        -448
+      ],
+      "id": "8062cc6c-a97a-4fd2-be85-11d977cfd3dc",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU",
+          "mode": "list",
+          "cachedResultName": "QuoteBox",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "frases",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AOkNRgqj_nGEUSGb_O69NeGRV9jyDytmeasIj-jlJeU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ Date.now() }}_{{ $itemIndex }}",
+            "texto": "={{ $json.text }}",
+            "autor": "={{ $json.author }}",
+            "tags": "={{ $json.tags.join(',') }}",
+            "estado": "=activa",
+            "fecha_agregada": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "autor",
+              "displayName": "autor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tags",
+              "displayName": "tags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_agregada",
+              "displayName": "fecha_agregada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -128,
+        -656
+      ],
+      "id": "4697f66f-b818-4468-9f15-ea519f2e6823",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "aTDKxobailyI6Arb",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const newQuotes = $('Code in JavaScript1').all().map(item => item.json);\n\nif (newQuotes.length === 0) {\n  return [];\n}\n\nconst grouped = {};\nfor (const quote of newQuotes) {\n  for (const tag of quote.tags) {\n    if (!grouped[tag]) grouped[tag] = [];\n    grouped[tag].push(`\"${quote.text}\" — ${quote.author}`);\n  }\n}\n\nlet html = `<h2>Nuevas frases detectadas: ${newQuotes.length}</h2>`;\nfor (const [tag, quotes] of Object.entries(grouped)) {\n  html += `<h3>#${tag}</h3><ul>`;\n  for (const q of quotes) {\n    html += `<li>${q}</li>`;\n  }\n  html += `</ul>`;\n}\n\nreturn [{ json: { emailBody: html, count: newQuotes.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -432
+      ],
+      "id": "863706ad-4438-4bb3-875e-94dd10078de4",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "sendTo": "luisezequielpuig@gmail.com",
+        "subject": "==Nuevas frases detectadas: {{ $json.count }}",
+        "message": "=={{ $json.emailBody }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        -432
+      ],
+      "id": "15e3ed6f-a50e-4d76-b817-a36e23d458d8",
+      "name": "Send a message",
+      "webhookId": "7f59b05e-99c6-4d1e-bade-f2b421314bbd",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "HRCviapYx7HjrRoT",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "iterar paginas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "un item x frase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "iterar paginas": {
+      "main": [
+        [
+          {
+            "node": "session cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "session cookies": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "un item x frase": {
+      "main": [
+        [
+          {
+            "node": "Get Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Rows": {
+      "main": [
+        [
+          {
+            "node": "filtrar tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filtrar tags": {
+      "main": [
+        [
+          {
+            "node": "frases existentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "frases existentes": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "43559da7-54e0-4e91-9dd7-20bd5a301dd4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "17271854b89f1088ce4e3e1c02cea1155199d6fbf1c8b0c745f75849742abd7b"
+  },
+  "id": "kbChx5H4sH8X7arE",
+  "tags": []
+}
